@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.search.Search;
 import org.slf4j.Logger;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.concurrent.TimeUnit;
 
+import static io.micrometer.core.instrument.Metrics.globalRegistry;
 import static org.slf4j.LoggerFactory.getLogger;
 
 @SpringBootApplication
@@ -29,6 +31,7 @@ public class MicrometerbasicsApplication {
 		Metrics.addRegistry(meterRegistry);		// without that, counter and counter2 will not point to the same metric!
 
 		Counter counter2 = Metrics.counter("theCounter", Tags.of("theTag", "theTagValue"));
+		Counter counter3 = Metrics.counter("theCounter", Tags.of("theTag", "theOtherTagValue"));
 		Timer timer = Metrics.timer("theTimer");
 
 		return args -> {
@@ -37,11 +40,23 @@ public class MicrometerbasicsApplication {
 
 			counter.increment();
 			counter2.increment();
+			counter3.increment(5);
 
-			logger.info("Counter: {}", counter.count());
+			logger.info("Counter: {}", counter.count());	// == 2
 			logger.info("Registry: {}", meterRegistry);
 
-			Metrics.globalRegistry.getMeters().forEach(meter -> logger.info("Measured {}: {}", meter.getId(), meter.measure()));
+			globalRegistry.getMeters().forEach(meter -> logger.info("Measured {}: {}", meter.getId(), meter.measure()));
+
+			Search search = globalRegistry.find("theCounter");
+			logger.info("Found counters: {}", search.counter().count());
+
+			int sumOfAllCounters = search
+					.counters()
+					.stream()
+					.map(Counter::count)
+					.mapToInt(Double::intValue)
+					.sum();
+			logger.info("All counters counted {}", sumOfAllCounters);
 
 			logger.info("THE END");
 		};
